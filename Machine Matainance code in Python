@@ -1,89 +1,96 @@
-import datetime
+from datetime import datetime, timedelta
+import smtplib
+from email.message import EmailMessage
+import os
 
-FILENAME = "maintenance_log.txt"
+FILE_NAME = "maintenance_log.txt"
 
+# ========== EMAIL ALERT FUNCTION ==========
+def send_email_alert(machine, days_overdue):
+    sender_email = "mohankrishnachundru012@gmail.com"
+    app_password = "atmycyyfrqwwdide"   # ← NO SPACES
+    receiver_email = "mohankrishnachundru012@gmail.com"
 
+    msg = EmailMessage()
+    msg.set_content(
+        f"⚠️ MAINTENANCE ALERT!\n\n"
+        f"Machine: {machine}\n"
+        f"Service is OVERDUE by {days_overdue} days.\n"
+        f"Please perform maintenance immediately."
+    )
+    msg['Subject'] = f"Maintenance Alert: {machine} OVERDUE"
+    msg['From'] = sender_email
+    msg['To'] = receiver_email
+
+    try:
+        print("Connecting to Gmail...")
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(sender_email, app_password)
+            print("Login success")
+            smtp.send_message(msg)
+        print("📧 Email alert sent successfully!")
+    except Exception as e:
+        print("❌ Email failed:", e)
+
+# ========== ADD RECORD ==========
 def add_record():
     machine = input("Enter machine name: ")
     last_service = input("Enter last service date (YYYY-MM-DD): ")
     interval = int(input("Enter service interval (in days): "))
 
-    last_date = datetime.datetime.strptime(last_service, "%Y-%m-%d").date()
-    next_service = last_date + datetime.timedelta(days=interval)
+    next_service = datetime.strptime(last_service, "%Y-%m-%d") + timedelta(days=interval)
 
-    with open(FILENAME, "a") as file:
-        file.write(f"{machine},{last_service},{interval},{next_service}\n")
+    with open(FILE_NAME, "a") as f:
+        f.write(f"{machine},{last_service},{interval},{next_service.date()}\n")
 
-    print(f"\nNext service date for {machine}: {next_service}\n")
+    print("✅ Record added successfully!\n")
 
-
+# ========== VIEW RECORDS ==========
 def view_records():
-    try:
-        with open(FILENAME, "r") as file:
-            records = file.readlines()
+    if not os.path.exists(FILE_NAME):
+        print("No records found.\n")
+        return
 
-            if not records:
-                print("\nNo records found.\n")
-                return
+    today = datetime.today().date()
 
-            print("\n=== All Maintenance Records ===\n")
-            for record in records:
-                machine, last, interval, next_service = record.strip().split(",")
+    with open(FILE_NAME, "r") as f:
+        records = f.readlines()
 
-                print(f"Machine Name      : {machine}")
-                print(f"Last Service Date : {last}")
-                print(f"Interval (days)   : {interval}")
-                print(f"Next Service Date : {next_service}")
-                print("-" * 35)
+    for record in records:
+        machine, last_service, interval, next_service = record.strip().split(",")
+        next_service_date = datetime.strptime(next_service, "%Y-%m-%d").date()
 
-    except FileNotFoundError:
-        print("\nNo records found.\n")
+        print(f"\nMachine: {machine}")
+        print(f"Last Service: {last_service}")
+        print(f"Next Service: {next_service_date}")
 
+        if today > next_service_date:
+            days_overdue = (today - next_service_date).days
+            print(f"🔴 OVERDUE by {days_overdue} days")
+            send_email_alert(machine, days_overdue)
+        else:
+            days_left = (next_service_date - today).days
+            print(f"🟢 {days_left} days remaining")
 
-def check_due_services():
-    today = datetime.date.today()
-
-    try:
-        with open(FILENAME, "r") as file:
-            records = file.readlines()
-            print("\n=== Maintenance Status Report ===\n")
-
-            for record in records:
-                machine, last, interval, next_service = record.strip().split(",")
-                next_date = datetime.datetime.strptime(next_service, "%Y-%m-%d").date()
-                days_overdue = (today - next_date).days
-
-                if days_overdue == 0:
-                    print(f"{machine} - Service DUE TODAY")
-                elif days_overdue > 0:
-                    print(f"{machine} - OVERDUE by {days_overdue} days")
-                else:
-                    print(f"{machine} - On schedule")
-
-    except FileNotFoundError:
-        pass
-
-
+# ========== MENU ==========
 def menu():
     while True:
         print("\n===== Machine Maintenance Log System =====")
-        check_due_services()
-
-        print("\n1. Add Maintenance Record")
+        print("1. Add Maintenance Record")
         print("2. View All Records")
         print("3. Exit")
 
-        choice = input("\nEnter your choice: ")
+        choice = input("Enter your choice: ")
 
-        if choice == "1":
+        if choice == '1':
             add_record()
-        elif choice == "2":
+        elif choice == '2':
             view_records()
-        elif choice == "3":
-            print("Exiting program...")
+        elif choice == '3':
+            print("Exiting program.")
             break
         else:
             print("Invalid choice. Try again.")
 
-
+# ========== RUN ==========
 menu()
